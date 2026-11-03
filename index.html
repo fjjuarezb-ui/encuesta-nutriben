@@ -55,6 +55,22 @@
   .input-field:focus{border-color:var(--azul-cielo)}
   select.input-field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%235a6a8a' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:calc(100% - 14px) center;padding-right:40px}
 
+  /* Autocomplete médico */
+  .ac-wrap{position:relative;margin-bottom:12px}
+  .ac-wrap .input-field{margin-bottom:0}
+  .ac-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--blanco);border:1.5px solid var(--azul-cielo);border-radius:12px;box-shadow:0 8px 24px rgba(0,51,161,.12);z-index:999;overflow:hidden;max-height:240px;overflow-y:auto}
+  .ac-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--gris-borde);transition:background .15s}
+  .ac-item:last-child{border-bottom:none}
+  .ac-item:hover,.ac-item.active{background:#EEF3FF}
+  .ac-name{font-size:13px;font-weight:700;color:var(--azul)}
+  .ac-meta{font-size:11px;color:var(--texto-suave);margin-top:1px}
+  .ac-badge{display:inline-block;background:var(--azul-cielo);color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:6px;vertical-align:middle}
+  .ac-selected{display:flex;align-items:center;gap:8px;background:#EEF3FF;border:1.5px solid var(--azul-cielo);border-radius:12px;padding:10px 14px;margin-bottom:12px}
+  .ac-selected-name{font-size:13px;font-weight:700;color:var(--azul);flex:1}
+  .ac-selected-meta{font-size:11px;color:var(--texto-suave)}
+  .ac-clear{color:var(--texto-suave);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
+  .ac-clear:hover{color:#c0392b}
+
   .formula-grid{display:grid;gap:14px;margin-bottom:8px}
   .formula-card{background:var(--blanco);border:2px solid var(--gris-borde);border-radius:14px;padding:14px 16px;transition:border-color .2s}
   .formula-card:focus-within{border-color:var(--azul-cielo)}
@@ -168,6 +184,7 @@
 <div class="tab-bar">
   <button class="tab-btn active" onclick="showTab('survey')">📋 Encuesta</button>
   <button class="tab-btn" onclick="showTab('dashboard')">📊 Dashboard</button>
+  <button class="tab-btn" onclick="showTab('link')">🔗 Link</button>
   <button class="tab-btn" onclick="showTab('config')">⚙️ Config</button>
 </div>
 
@@ -175,7 +192,7 @@
 <div id="screen-survey" class="screen active">
   <div class="progress-wrap">
     <div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
-    <div class="progress-label" id="prog-label">Paso 1 / 4</div>
+    <div class="progress-label" id="prog-label">Paso 1 / 3</div>
   </div>
 
   <!-- PASO 1: Identificación -->
@@ -184,7 +201,22 @@
     <div class="step-q">¿Con quién estamos hablando?</div>
     <div class="step-hint">Datos del médico visitado hoy</div>
     <input class="input-field" id="s1-mr" type="text" placeholder="Tu nombre (representante médico)" autocomplete="off">
-    <input class="input-field" id="s1-nombre" type="text" placeholder="Nombre del médico" autocomplete="off">
+
+    <!-- Autocomplete médico desde panel -->
+    <div class="ac-wrap" id="ac-wrap">
+      <input class="input-field" id="ac-input" type="text" placeholder="🔍 Buscar médico del panel…" autocomplete="off" oninput="acSearch(this.value)" onfocus="if(this.value.length>=2)acSearch(this.value)">
+      <div class="ac-dropdown" id="ac-dropdown" style="display:none"></div>
+    </div>
+    <div id="ac-selected" style="display:none">
+      <div class="ac-selected">
+        <div style="flex:1">
+          <div class="ac-selected-name" id="ac-sel-name"></div>
+          <div class="ac-selected-meta" id="ac-sel-meta"></div>
+        </div>
+        <span class="ac-clear" onclick="acClear()" title="Cambiar médico">✕</span>
+      </div>
+    </div>
+
     <input class="input-field" id="s1-ciudad" type="text" placeholder="Ciudad / Hospital / Clínica" autocomplete="off">
     <select class="input-field" id="s1-especialidad">
       <option value="">Especialidad…</option>
@@ -254,62 +286,35 @@
         <div class="range-labels"><span>0</span><span>7</span><span>15+</span></div>
       </div>
 
+      <div class="formula-card">
+        <div class="formula-top">
+          <div class="formula-name"><span class="formula-dot" style="background:#4CAF50"></span>Soja</div>
+          <div class="formula-value" id="v-soja">0</div>
+        </div>
+        <div class="formula-sub">Alergia a proteína de leche de vaca</div>
+        <input type="range" min="0" max="15" value="0" oninput="updSlider('soja',this.value)">
+        <div class="range-labels"><span>0</span><span>7</span><span>15+</span></div>
+      </div>
+
+      <div class="formula-card">
+        <div class="formula-top">
+          <div class="formula-name"><span class="formula-dot" style="background:#E91E8C"></span>Bajo peso</div>
+          <div class="formula-value" id="v-bp">0</div>
+        </div>
+        <div class="formula-sub">Prematuro / bajo peso al nacer</div>
+        <input type="range" min="0" max="15" value="0" oninput="updSlider('bp',this.value)">
+        <div class="range-labels"><span>0</span><span>7</span><span>15+</span></div>
+      </div>
+
     </div>
     <button class="btn-primary" onclick="goStep(3)">Continuar →</button>
     <button class="btn-secondary" onclick="goStep(1)">← Atrás</button>
   </div>
 
-  <!-- PASO 3: Marcas + Barreras -->
+  <!-- PASO 3: Guardar -->
   <div class="step" id="step-3">
-    <div class="step-eyebrow">Competencia</div>
-    <div class="step-q">¿Qué marca recomienda con mayor frecuencia hoy?</div>
-    <div class="step-hint">Selecciona las que mencione (puede ser más de una)</div>
-    <div class="chips" id="marca-chips">
-      <div class="chip" onclick="toggleChip(this)">Nutriben</div>
-      <div class="chip" onclick="toggleChip(this)">Similac</div>
-      <div class="chip" onclick="toggleChip(this)">Enfamil</div>
-      <div class="chip" onclick="toggleChip(this)">NAN</div>
-      <div class="chip" onclick="toggleChip(this)">Nutricia</div>
-      <div class="chip" onclick="toggleChip(this)">Otra</div>
-    </div>
-    <div class="step-eyebrow" style="margin-top:20px">Barreras para Nutriben</div>
-    <div class="step-hint" style="margin-top:4px">¿Qué frena que lo recomiende más? (opcional)</div>
-    <div class="chips" id="barrera-chips" style="margin-top:8px">
-      <div class="chip" onclick="toggleChip(this)">Precio alto</div>
-      <div class="chip" onclick="toggleChip(this)">Disponibilidad</div>
-      <div class="chip" onclick="toggleChip(this)">Marca poco conocida</div>
-      <div class="chip" onclick="toggleChip(this)">Falta info científica</div>
-      <div class="chip" onclick="toggleChip(this)">Sin muestras</div>
-      <div class="chip" onclick="toggleChip(this)">Compromiso con otra marca</div>
-      <div class="chip" onclick="toggleChip(this)">Ninguna</div>
-    </div>
-    <button class="btn-primary" onclick="goStep(4)">Continuar →</button>
-    <button class="btn-secondary" onclick="goStep(2)">← Atrás</button>
-  </div>
-
-  <!-- PASO 4: Potencial -->
-  <div class="step" id="step-4">
-    <div class="step-eyebrow">Potencial Nutriben</div>
-    <div class="step-q">Si tuviera muestras disponibles, ¿cuántos pacientes podría iniciar con Nutriben esta semana?</div>
-    <div class="step-hint">Estimado honesto — ayuda a planificar cobertura de muestras</div>
-    <div class="formula-card" style="margin-bottom:16px">
-      <div class="formula-top">
-        <div class="formula-name"><span class="formula-dot" style="background:var(--naranja)"></span>Potencial semanal</div>
-        <div class="formula-value" id="v-pot">0</div>
-      </div>
-      <div class="formula-sub">Pacientes por semana</div>
-      <input type="range" min="0" max="20" value="0" oninput="updSlider('pot',this.value)">
-      <div class="range-labels"><span>0</span><span>10</span><span>20+</span></div>
-    </div>
-    <div class="step-eyebrow" style="margin-bottom:8px">¿Qué tipo de soporte prefiere?</div>
-    <div class="chips" id="soporte-chips">
-      <div class="chip" onclick="toggleChip(this)">Muestras físicas</div>
-      <div class="chip" onclick="toggleChip(this)">Cupones digitales</div>
-      <div class="chip" onclick="toggleChip(this)">Eventos / charlas</div>
-      <div class="chip" onclick="toggleChip(this)">Material científico</div>
-    </div>
     <button class="btn-primary" id="submit-btn" onclick="submitSurvey()">✓ Guardar encuesta</button>
-    <button class="btn-secondary" onclick="goStep(3)">← Atrás</button>
+    <button class="btn-secondary" onclick="goStep(2)">← Atrás</button>
   </div>
 
   <!-- ÉXITO -->
@@ -379,19 +384,30 @@
       </div>
     </div>
 
-    <!-- Marcas -->
-    <div class="stat-card">
-      <h3>Marcas más mencionadas</h3>
-      <div id="marca-metrics"></div>
-    </div>
-
-    <!-- Potencial Nutriben -->
-    <div class="stat-card">
-      <h3>Potencial Nutriben — equipo completo</h3>
-      <div id="pot-metrics"></div>
-    </div>
-
     <button class="export-btn" onclick="exportCSV()">⬇ Exportar CSV</button>
+  </div>
+</div>
+
+<!-- ══════════ GENERAR LINK ══════════ -->
+<div id="screen-link" class="screen">
+  <div style="background:var(--blanco);border-radius:16px;padding:24px;box-shadow:0 2px 10px rgba(0,51,161,.06)">
+    <h2 style="font-size:18px;font-weight:800;color:var(--azul);margin-bottom:6px">🔗 Generar link para médico</h2>
+    <p style="font-size:13px;color:var(--texto-suave);margin-bottom:20px;line-height:1.5">
+      Busca al médico del panel, genera su link personal y envíaselo por WhatsApp. El abre y ya aparece su nombre precargado.
+    </p>
+    <div class="ac-wrap" id="link-ac-wrap">
+      <input class="input-field" id="link-ac-input" type="text" placeholder="🔍 Buscar médico del panel…" autocomplete="off" oninput="linkAcSearch(this.value)">
+      <div class="ac-dropdown" id="link-ac-dropdown" style="display:none"></div>
+    </div>
+    <div id="link-result" style="display:none;margin-top:16px">
+      <div style="background:var(--gris-bg);border-radius:12px;padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:12px;color:var(--texto-suave);margin-bottom:4px">Link personal generado:</div>
+        <div id="link-url" style="font-size:13px;font-weight:600;color:var(--azul);word-break:break-all"></div>
+      </div>
+      <button class="btn-primary" onclick="copyLink()" id="copy-btn">📋 Copiar link</button>
+      <button class="btn-secondary" onclick="shareWhatsApp()" style="background:#25D366;color:#fff;border:none;margin-top:8px">💬 Enviar por WhatsApp</button>
+      <div id="link-medico-info" style="margin-top:12px;font-size:12px;color:var(--texto-suave)"></div>
+    </div>
   </div>
 </div>
 
@@ -444,7 +460,10 @@ let CFG = { url:'', key:'', mr:'' };
 
 function loadConfig() {
   try { CFG = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch(e){}
-  CFG.url = CFG.url||''; CFG.key = CFG.key||''; CFG.mr = CFG.mr||'';
+  // Valores por defecto: permiten que el médico que abre un link ?med=ID responda sin configurar nada
+  CFG.url = CFG.url||'https://lzljnszgqjxxufpkcolv.supabase.co';
+  CFG.key = CFG.key||'sb_publishable_U3BePGKe_qc4uBbHuL4_OA_8jbY0iMJ';
+  CFG.mr = CFG.mr||'';
   document.getElementById('cfg-url').value = CFG.url;
   document.getElementById('cfg-key').value = CFG.key;
   document.getElementById('cfg-mr').value = CFG.mr;
@@ -470,7 +489,7 @@ async function testConnection() {
   if (!CFG.url || !CFG.key) { res.innerHTML='<span style="color:#c0392b">⚠ Completa URL y Key primero</span>'; return; }
   res.innerHTML = '<span style="color:var(--azul-cielo)">Probando…</span>';
   try {
-    const r = await fetch(sbRestUrl('encuestas?limit=1'), { headers: sbHeaders() });
+    const r = await fetch(sbRestUrl('encuestas_v2?limit=1'), { headers: sbHeaders() });
     if (r.ok) res.innerHTML = '<span style="color:#2e7d32">✅ Conexión exitosa</span>';
     else {
       const t = await r.text();
@@ -512,7 +531,7 @@ async function sbInsert(record) {
   if (!CFG.url || !CFG.key) return false;
   setSyncDot('syncing');
   try {
-    const url = sbRestUrl('encuestas');
+    const url = sbRestUrl('encuestas_v2');
     const r = await fetch(url, {
       method: 'POST',
       headers: sbHeaders({ 'Prefer': 'return=minimal' }),
@@ -541,7 +560,7 @@ async function sbSelect() {
     let all = [];
     let offset = 0;
     while (true) {
-      const url = sbRestUrl(`encuestas?order=created_at.desc&limit=${PAGE}&offset=${offset}`);
+      const url = sbRestUrl(`encuestas_v2?order=created_at.desc&limit=${PAGE}&offset=${offset}`);
       const r = await fetch(url, { headers: sbHeaders({'Prefer':'count=exact'}) });
       if (!r.ok) {
         const t = await r.text();
@@ -593,12 +612,156 @@ function showTab(tab) {
 //  SURVEY STATE
 // ══════════════════════════════════════
 let currentStep = 1;
-const TOTAL_STEPS = 4;
-const sliders = {e1:0,e3:0,eh:0,ph:0,sl:0,pot:0};
+const TOTAL_STEPS = 3;
+const sliders = {e1:0,e3:0,eh:0,ph:0,sl:0,soja:0,bp:0};
+
+// ══════════════════════════════════════
+//  AUTOCOMPLETE MÉDICO (panel Supabase)
+// ══════════════════════════════════════
+let acSelected = null; // {id, nombre, ciudad, especialidad, mr}
+let acTimer = null;
+
+async function acSearch(q) {
+  clearTimeout(acTimer);
+  const drop = document.getElementById('ac-dropdown');
+  if (q.length < 2) { drop.style.display='none'; return; }
+  acTimer = setTimeout(async () => {
+    if (!CFG.url || !CFG.key) { drop.innerHTML='<div class="ac-item"><div class="ac-meta">Configura Supabase primero</div></div>'; drop.style.display='block'; return; }
+    try {
+      const url = sbRestUrl(`medicos_panel?nombre=ilike.*${encodeURIComponent(q)}*&select=id,nombre,ciudad,especialidad,mr&limit=8`);
+      const r = await fetch(url, {headers: sbHeaders()});
+      const data = await r.json();
+      if (!data.length) {
+        drop.innerHTML='<div class="ac-item"><div class="ac-meta">Sin resultados — puedes escribir el nombre manualmente</div></div>';
+      } else {
+        drop.innerHTML = data.map((m,i)=>`
+          <div class="ac-item" data-idx="${i}" onclick="acPick(${JSON.stringify(JSON.stringify(m))})">
+            <div class="ac-name">${m.nombre}<span class="ac-badge">${m.especialidad||''}</span></div>
+            <div class="ac-meta">${m.ciudad||''} · MR: ${m.mr||''}</div>
+          </div>`).join('');
+      }
+      drop.style.display='block';
+    } catch(e) { drop.style.display='none'; }
+  }, 280);
+}
+
+function acPick(mJson) {
+  const m = JSON.parse(mJson);
+  acSelected = m;
+  // Ocultar input, mostrar chip seleccionado
+  document.getElementById('ac-wrap').style.display='none';
+  document.getElementById('ac-selected').style.display='block';
+  document.getElementById('ac-sel-name').textContent = m.nombre;
+  document.getElementById('ac-sel-meta').textContent = (m.ciudad||'') + (m.especialidad ? ' · '+m.especialidad : '') + (m.mr ? ' · MR: '+m.mr : '');
+  // Rellenar campos
+  if (m.ciudad) document.getElementById('s1-ciudad').value = m.ciudad;
+  if (m.especialidad) {
+    const sel = document.getElementById('s1-especialidad');
+    // Intento coincidencia con las opciones del select
+    const esp = m.especialidad.toLowerCase();
+    for (let o of sel.options) {
+      if (o.text.toLowerCase().includes(esp) || esp.includes(o.text.toLowerCase().split(' ')[0])) { sel.value=o.value; break; }
+    }
+  }
+  document.getElementById('ac-dropdown').style.display='none';
+}
+
+// ══════════════════════════════════════
+//  INIT DESDE URL (?med=ID)
+// ══════════════════════════════════════
+async function initFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const medId = params.get('med');
+  if (!medId) return;
+  // Esperar a que la config esté lista
+  await new Promise(r => setTimeout(r, 600));
+  if (!CFG.url || !CFG.key) return;
+  try {
+    const r = await fetch(sbRestUrl(`medicos_panel?id=eq.${medId}&select=id,nombre,ciudad,especialidad,mr&limit=1`), {headers: sbHeaders()});
+    const data = await r.json();
+    if (!data.length) return;
+    const m = data[0];
+    acPick(JSON.stringify(m));
+    // Mostrar banner informativo al médico
+    const banner = document.getElementById('config-banner');
+    banner.innerHTML = `👋 Encuesta pre-cargada para <strong>${m.nombre}</strong> — solo mueve los sliders y presiona Guardar.`;
+    banner.classList.remove('hidden');
+    banner.style.background = '#e8f5e9';
+    banner.style.borderColor = '#4CAF50';
+    banner.style.color = '#1b5e20';
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════
+//  GENERADOR DE LINKS
+// ══════════════════════════════════════
+let linkMedico = null;
+
+async function linkAcSearch(q) {
+  const drop = document.getElementById('link-ac-dropdown');
+  if (q.length < 2) { drop.style.display='none'; return; }
+  if (!CFG.url || !CFG.key) { drop.innerHTML='<div class="ac-item"><div class="ac-meta">Configura Supabase primero</div></div>'; drop.style.display='block'; return; }
+  try {
+    const url = sbRestUrl(`medicos_panel?nombre=ilike.*${encodeURIComponent(q)}*&select=id,nombre,ciudad,especialidad,mr&limit=8`);
+    const r = await fetch(url, {headers: sbHeaders()});
+    const data = await r.json();
+    drop.innerHTML = data.length
+      ? data.map(m=>`<div class="ac-item" onclick="linkPick(${JSON.stringify(JSON.stringify(m))})">
+          <div class="ac-name">${m.nombre}<span class="ac-badge">${m.especialidad||''}</span></div>
+          <div class="ac-meta">${m.ciudad||''} · MR: ${m.mr||''}</div>
+        </div>`).join('')
+      : '<div class="ac-item"><div class="ac-meta">Sin resultados en el panel</div></div>';
+    drop.style.display='block';
+  } catch(e) { drop.style.display='none'; }
+}
+
+function linkPick(mJson) {
+  linkMedico = JSON.parse(mJson);
+  document.getElementById('link-ac-dropdown').style.display='none';
+  document.getElementById('link-ac-input').value = linkMedico.nombre;
+  const base = window.location.href.split('?')[0];
+  const link = `${base}?med=${linkMedico.id}`;
+  document.getElementById('link-url').textContent = link;
+  document.getElementById('link-medico-info').textContent =
+    `${linkMedico.ciudad||''} · ${linkMedico.especialidad||''} · MR: ${linkMedico.mr||''}`;
+  document.getElementById('link-result').style.display='block';
+}
+
+function copyLink() {
+  const txt = document.getElementById('link-url').textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✅ ¡Copiado!';
+    setTimeout(()=>btn.textContent='📋 Copiar link', 2000);
+  });
+}
+
+function shareWhatsApp() {
+  const txt = document.getElementById('link-url').textContent;
+  const msg = encodeURIComponent(`Hola Dr. ${linkMedico?.nombre||''}, te comparto este link para completar tu perfil Nutribén:\n${txt}`);
+  window.open(`https://wa.me/?text=${msg}`, '_blank');
+}
+
+document.addEventListener('click', e=>{
+  if (!e.target.closest('#link-ac-wrap')) document.getElementById('link-ac-dropdown').style.display='none';
+});
+
+function acClear() {
+  acSelected = null;
+  document.getElementById('ac-wrap').style.display='block';
+  document.getElementById('ac-selected').style.display='none';
+  document.getElementById('ac-input').value='';
+  document.getElementById('ac-dropdown').style.display='none';
+}
+
+// Cerrar dropdown al hacer click afuera
+document.addEventListener('click', e=>{
+  if (!e.target.closest('#ac-wrap')) document.getElementById('ac-dropdown').style.display='none';
+});
 
 function goStep(n) {
   if (n===2) {
-    if (!document.getElementById('s1-nombre').value.trim()) { alert('Ingresa el nombre del médico.'); return; }
+    if (!acSelected && !document.getElementById('ac-input').value.trim()) { alert('Selecciona o escribe el nombre del médico.'); return; }
   }
   document.getElementById('step-'+currentStep).classList.remove('active');
   currentStep = n;
@@ -627,27 +790,29 @@ async function submitSurvey() {
   const btn = document.getElementById('submit-btn');
   btn.disabled = true; btn.textContent = 'Guardando…';
 
-  const total = sliders.e1 + sliders.e3 + sliders.eh + sliders.ph + sliders.sl;
+  const total = sliders.e1 + sliders.e3 + sliders.eh + sliders.ph + sliders.sl + sliders.soja + sliders.bp;
   let segmento;
   if      (total>=10) segmento='A';
   else if (total>=4)  segmento='B';
   else if (total>=1)  segmento='C';
   else                segmento='Sin Rx';
 
-  const mrNombre = document.getElementById('s1-mr').value.trim() || CFG.mr || 'MR';
+  const mrNombre = document.getElementById('s1-mr').value.trim() || CFG.mr || (acSelected && acSelected.mr) || 'MR';
+
+  // Nombre del médico: del panel (acSelected) o texto libre en el input
+  const medicoNombre = acSelected ? acSelected.nombre : document.getElementById('ac-input').value.trim();
+  const medicoId = acSelected ? acSelected.id : null;
 
   const record = {
     fecha:       new Date().toLocaleDateString('es-HN'),
     mr_nombre:   mrNombre,
-    medico_nombre: document.getElementById('s1-nombre').value.trim(),
+    medico_nombre: medicoNombre,
+    medico_id:   medicoId,
     ciudad:      document.getElementById('s1-ciudad').value.trim(),
     especialidad:document.getElementById('s1-especialidad').value,
-    e1: sliders.e1, e3: sliders.e3, eh: sliders.eh, ph: sliders.ph, sl: sliders.sl,
+    e1: sliders.e1, e3: sliders.e3, eh: sliders.eh, ph: sliders.ph, sl: sliders.sl, soja: sliders.soja, bp: sliders.bp,
     total, segmento,
-    potencial: sliders.pot,
-    marcas:   getChips('marca-chips'),
-    barreras: getChips('barrera-chips'),
-    soporte:  getChips('soporte-chips'),
+    via: new URLSearchParams(window.location.search).get('med') ? 'link' : 'presencial',
   };
 
   // guardar localmente siempre
@@ -662,7 +827,6 @@ async function submitSurvey() {
   document.getElementById('summary-pills').innerHTML = `
     <div class="s-pill"><strong>${total}</strong><span>inicios/sem</span></div>
     <div class="s-pill"><strong>${segmento}</strong><span>segmento</span></div>
-    <div class="s-pill"><strong>${sliders.pot}</strong><span>pot. Nutriben</span></div>
   `;
 
   document.getElementById('step-'+currentStep).classList.remove('active');
@@ -676,13 +840,14 @@ function newSurvey() {
   currentStep=1;
   Object.keys(sliders).forEach(k=>{sliders[k]=0;const el=document.getElementById('v-'+k);if(el)el.textContent='0';});
   document.querySelectorAll('input[type=range]').forEach(r=>r.value=0);
-  ['s1-mr','s1-nombre','s1-ciudad'].forEach(id=>document.getElementById(id).value='');
+  ['s1-mr','s1-ciudad'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('s1-especialidad').value='';
+  acClear();
   document.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
   document.getElementById('step-success').classList.remove('active');
   document.getElementById('step-1').classList.add('active');
   document.getElementById('prog').style.width='0%';
-  document.getElementById('prog-label').textContent='Paso 1 / 4';
+  document.getElementById('prog-label').textContent='Paso 1 / 3';
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -710,13 +875,14 @@ async function loadDashboard() {
 }
 
 const FMETA = [
-  {key:'e1',label:'Etapa 1',color:'#0033A1'},
-  {key:'e3',label:'Etapa 3',color:'#6C8CC7'},
-  {key:'eh',label:'Ext. hidrolizada',color:'#A9A5D1'},
-  {key:'ph',label:'Parc. hidrolizada',color:'#7EC7BD'},
-  {key:'sl',label:'Sin lactosa',color:'#FAA334'},
+  {key:'e1',  label:'Etapa 1',          color:'#0033A1'},
+  {key:'e3',  label:'Etapa 3',          color:'#6C8CC7'},
+  {key:'eh',  label:'Ext. hidrolizada', color:'#A9A5D1'},
+  {key:'ph',  label:'Parc. hidrolizada',color:'#7EC7BD'},
+  {key:'sl',  label:'Sin lactosa',      color:'#FAA334'},
+  {key:'soja',label:'Soja',             color:'#4CAF50'},
+  {key:'bp',  label:'Bajo peso',        color:'#E91E8C'},
 ];
-const MARCA_COLORS = {Nutriben:'#0033A1',Similac:'#E63946',Enfamil:'#F4A261',NAN:'#2A9D8F',Nutricia:'#8338EC',Otra:'#aaa'};
 
 function avg(arr){return arr.length?(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1):'0.0';}
 function sum(arr){return arr.reduce((a,b)=>a+b,0);}
@@ -727,11 +893,9 @@ function renderDash(data) {
 
   // KPIs
   const totalInicios = sum(data.map(d=>d.total||0));
-  const totalPot = sum(data.map(d=>d.potencial||0));
   const pctA = Math.round(data.filter(d=>d.segmento==='A').length/n*100);
   document.getElementById('kpi-row').innerHTML = `
     <div class="kpi-card"><div class="kpi-val">${totalInicios}</div><div class="kpi-label">Inicios totales / semana</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:var(--naranja)">${totalPot}</div><div class="kpi-label">Potencial Nutriben / sem</div></div>
     <div class="kpi-card"><div class="kpi-val" style="color:#2e7d32">${pctA}%</div><div class="kpi-label">Médicos segmento A</div></div>
   `;
 
@@ -768,38 +932,9 @@ function renderDash(data) {
       <td style="color:var(--texto-suave);font-size:11px">${d.mr_nombre||''}</td>
       <td style="font-weight:700;color:var(--azul)">${d.total||0}</td>
       <td><span class="seg-badge ${cls}">${s}</span></td>
-      <td style="font-weight:700;color:var(--naranja)">${d.potencial||0}</td>
     </tr>`;
   }).join('');
 
-  // Marcas
-  const mc = {};
-  data.forEach(d=>(d.marcas||[]).forEach(m=>{mc[m]=(mc[m]||0)+1;}));
-  const sm = Object.entries(mc).sort((a,b)=>b[1]-a[1]);
-  const tm = sm.reduce((s,[,v])=>s+v,0)||1;
-  document.getElementById('marca-metrics').innerHTML = sm.length
-    ? sm.map(([name,cnt])=>{
-        const pct=Math.round((cnt/tm)*100);
-        const col=MARCA_COLORS[name]||'#888';
-        return `<div class="metric-row">
-          <span class="metric-dot" style="background:${col}"></span>
-          <span class="metric-name">${name}</span>
-          <div class="metric-bar-wrap"><div class="metric-bar" style="background:${col};width:${pct}%"></div></div>
-          <span class="metric-val">${cnt}</span>
-        </div>`;
-      }).join('')
-    : '<p style="color:var(--texto-suave);font-size:13px">Sin datos</p>';
-
-  // Potencial
-  const avgPot = avg(data.map(d=>d.potencial||0));
-  document.getElementById('pot-metrics').innerHTML = `
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px">
-      <div class="s-pill"><strong style="font-size:22px;color:var(--azul)">${totalPot}</strong><span>total / semana</span></div>
-      <div class="s-pill"><strong style="font-size:22px;color:var(--naranja)">${avgPot}</strong><span>promedio / médico</span></div>
-      <div class="s-pill"><strong style="font-size:22px;color:var(--menta)">${totalPot*4}</strong><span>proyección mensual</span></div>
-    </div>
-    <p style="font-size:12px;color:var(--texto-suave)">Proyección asumiendo cobertura completa de muestras.</p>
-  `;
 }
 
 // Auto-refresh cada 60 segundos cuando el dashboard está visible
@@ -817,11 +952,10 @@ async function exportCSV() {
   let data = await sbSelect();
   if (!data || !data.length) data = localLoad();
   if (!data.length) return;
-  const headers = ['Fecha','MR','Médico','Ciudad','Especialidad','E1','E3','Ext.Hidrol.','Parc.Hidrol.','SinLactosa','Total','Segmento','Pot.Nutriben','Marcas','Barreras','Soporte'];
+  const headers = ['Fecha','MR','Médico','Ciudad','Especialidad','E1','E3','Ext.Hidrol.','Parc.Hidrol.','SinLactosa','Soja','BajoPeso','Total','Segmento'];
   const rows = data.map(d=>[
     d.fecha,d.mr_nombre,d.medico_nombre,d.ciudad,d.especialidad,
-    d.e1,d.e3,d.eh,d.ph||0,d.sl,d.total,d.segmento,d.potencial,
-    (d.marcas||[]).join('|'),(d.barreras||[]).join('|'),(d.soporte||[]).join('|')
+    d.e1,d.e3,d.eh,d.ph||0,d.sl,d.soja||0,d.bp||0,d.total,d.segmento
   ].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','));
   const csv = [headers.join(','),...rows].join('\n');
   const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
@@ -836,10 +970,11 @@ async function exportCSV() {
 // ══════════════════════════════════════
 loadConfig();
 startAutoRefresh();
+initFromUrl();
 
 // Keepalive ping cada 4 dias para evitar que Supabase pause el proyecto
 setInterval(async()=>{
-  if(CFG.url&&CFG.key){try{await fetch(sbRestUrl('encuestas?limit=1'),{headers:sbHeaders()});}catch(e){}}
+  if(CFG.url&&CFG.key){try{await fetch(sbRestUrl('encuestas_v2?limit=1'),{headers:sbHeaders()});}catch(e){}}
 }, 345600000);
 </script>
 </body>
