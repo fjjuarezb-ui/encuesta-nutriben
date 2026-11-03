@@ -620,6 +620,9 @@ const sliders = {e1:0,e3:0,eh:0,ph:0,sl:0,soja:0,bp:0};
 // ══════════════════════════════════════
 let acSelected = null; // {id, nombre, ciudad, especialidad, mr}
 let acTimer = null;
+let acResults = [], linkResults = [];
+// Escapa texto antes de insertarlo como HTML
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 async function acSearch(q) {
   clearTimeout(acTimer);
@@ -634,10 +637,11 @@ async function acSearch(q) {
       if (!data.length) {
         drop.innerHTML='<div class="ac-item"><div class="ac-meta">Sin resultados — puedes escribir el nombre manualmente</div></div>';
       } else {
+        acResults = data;
         drop.innerHTML = data.map((m,i)=>`
-          <div class="ac-item" data-idx="${i}" onclick="acPick(${JSON.stringify(JSON.stringify(m))})">
-            <div class="ac-name">${m.nombre}<span class="ac-badge">${m.especialidad||''}</span></div>
-            <div class="ac-meta">${m.ciudad||''} · MR: ${m.mr||''}</div>
+          <div class="ac-item" data-idx="${i}" onclick="acPick(acResults[${i}])">
+            <div class="ac-name">${esc(m.nombre)}<span class="ac-badge">${esc(m.especialidad)}</span></div>
+            <div class="ac-meta">${esc(m.ciudad)} · MR: ${esc(m.mr)}</div>
           </div>`).join('');
       }
       drop.style.display='block';
@@ -646,7 +650,7 @@ async function acSearch(q) {
 }
 
 function acPick(mJson) {
-  const m = JSON.parse(mJson);
+  const m = typeof mJson === 'string' ? JSON.parse(mJson) : mJson;
   acSelected = m;
   // Ocultar input, mostrar chip seleccionado
   document.getElementById('ac-wrap').style.display='none';
@@ -705,10 +709,11 @@ async function linkAcSearch(q) {
     const url = sbRestUrl(`medicos_panel?nombre=ilike.*${encodeURIComponent(q)}*&select=id,nombre,ciudad,especialidad,mr&limit=8`);
     const r = await fetch(url, {headers: sbHeaders()});
     const data = await r.json();
+    linkResults = data;
     drop.innerHTML = data.length
-      ? data.map(m=>`<div class="ac-item" onclick="linkPick(${JSON.stringify(JSON.stringify(m))})">
-          <div class="ac-name">${m.nombre}<span class="ac-badge">${m.especialidad||''}</span></div>
-          <div class="ac-meta">${m.ciudad||''} · MR: ${m.mr||''}</div>
+      ? data.map((m,i)=>`<div class="ac-item" onclick="linkPick(linkResults[${i}])">
+          <div class="ac-name">${esc(m.nombre)}<span class="ac-badge">${esc(m.especialidad)}</span></div>
+          <div class="ac-meta">${esc(m.ciudad)} · MR: ${esc(m.mr)}</div>
         </div>`).join('')
       : '<div class="ac-item"><div class="ac-meta">Sin resultados en el panel</div></div>';
     drop.style.display='block';
@@ -716,7 +721,7 @@ async function linkAcSearch(q) {
 }
 
 function linkPick(mJson) {
-  linkMedico = JSON.parse(mJson);
+  linkMedico = typeof mJson === 'string' ? JSON.parse(mJson) : mJson;
   document.getElementById('link-ac-dropdown').style.display='none';
   document.getElementById('link-ac-input').value = linkMedico.nombre;
   const base = window.location.href.split('?')[0];
