@@ -177,7 +177,7 @@
   <div class="logo-badge">Nb</div>
   <div class="header-text">
     <h1>Nutriben · Potencial Recetario</h1>
-    <p>Herramienta de campo — equipo MR · v2.1</p>
+    <p>Herramienta de campo — equipo MR · v2.2</p>
   </div>
   <div class="sync-dot" id="sync-dot" title="Estado de conexión"></div>
 </div>
@@ -542,8 +542,10 @@ async function sbInsert(record) {
       const t = await r.text();
       console.error('Supabase insert error:', r.status, t);
     }
+    sbInsert.lastStatus = r.status;
     return r.ok;
   } catch(e) {
+    sbInsert.lastStatus = 0;
     console.error('sbInsert exception:', e);
     setSyncDot('error');
     return false;
@@ -624,6 +626,17 @@ let acResults = [], linkResults = [];
 // Escapa texto antes de insertarlo como HTML
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// ¿Este médico del panel ya tiene encuesta? Devuelve el registro o null.
+async function yaEncuestado(medId) {
+  if (!medId || !CFG.url || !CFG.key) return null;
+  try {
+    const r = await fetch(sbRestUrl(`encuestas_v2?medico_id=eq.${medId}&select=id,fecha,via,mr_nombre&limit=1`), {headers: sbHeaders()});
+    const d = await r.json();
+    return (Array.isArray(d) && d.length) ? d[0] : null;
+  } catch(e) { return null; }
+}
+const esLink = () => !!new URLSearchParams(window.location.search).get('med');
+
 async function acSearch(q) {
   clearTimeout(acTimer);
   const drop = document.getElementById('ac-dropdown');
@@ -668,6 +681,16 @@ function acPick(mJson) {
     }
   }
   document.getElementById('ac-dropdown').style.display='none';
+  // Bloqueo de duplicados: revisar si ya tiene encuesta
+  m.dup = null;
+  yaEncuestado(m.id).then(d => {
+    if (acSelected !== m) return;
+    m.dup = d;
+    if (d) {
+      document.getElementById('ac-sel-meta').innerHTML =
+        `<span style="color:#c62828;font-weight:700">⛔ Ya tiene encuesta (${esc(d.fecha)}, ${d.via==='link'?'por link':'presencial'}). No se puede repetir.</span>`;
+    }
+  });
 }
 
 // ══════════════════════════════════════
@@ -685,10 +708,17 @@ async function initFromUrl() {
     const data = await r.json();
     if (!data.length) return;
     const m = data[0];
-    acPick(JSON.stringify(m));
-    // Mostrar banner informativo al médico
+    acPick(m);
+    // El médico no es el representante: ocultar ese campo
+    document.getElementById('s1-mr').style.display = 'none';
     const banner = document.getElementById('config-banner');
-    banner.innerHTML = `👋 Encuesta pre-cargada para <strong>${m.nombre}</strong> — solo mueve los sliders y presiona Guardar.`;
+    const prev = await yaEncuestado(m.id);
+    if (prev) {
+      banner.innerHTML = `✅ <strong>${esc(m.nombre)}</strong>, ya recibimos su encuesta. ¡Muchas gracias!`;
+      document.getElementById('step-'+currentStep).classList.remove('active');
+    } else {
+      banner.innerHTML = `👋 Encuesta pre-cargada para <strong>${esc(m.nombre)}</strong> — solo mueve los sliders y presiona Guardar.`;
+    }
     banner.classList.remove('hidden');
     banner.style.background = '#e8f5e9';
     banner.style.borderColor = '#4CAF50';
@@ -730,6 +760,15 @@ function linkPick(mJson) {
   document.getElementById('link-medico-info').textContent =
     `${linkMedico.ciudad||''} · ${linkMedico.especialidad||''} · MR: ${linkMedico.mr||''}`;
   document.getElementById('link-result').style.display='block';
+  const m = linkMedico;
+  yaEncuestado(m.id).then(d => {
+    if (linkMedico !== m || !d) return;
+    document.getElementById('link-result').style.display='none';
+    document.getElementById('link-medico-info').textContent = '';
+    document.getElementById('link-ac-dropdown').innerHTML =
+      `<div class="ac-item"><div class="ac-meta" style="color:#c62828;font-weight:700">⛔ ${esc(m.nombre)} ya tiene encuesta (${esc(d.fecha)}). No hace falta enviarle link.</div></div>`;
+    document.getElementById('link-ac-dropdown').style.display='block';
+  });
 }
 
 function copyLink() {
@@ -767,6 +806,7 @@ document.addEventListener('click', e=>{
 function goStep(n) {
   if (n===2) {
     if (!acSelected && !document.getElementById('ac-input').value.trim()) { alert('Selecciona o escribe el nombre del médico.'); return; }
+    if (acSelected && acSelected.dup) { alert('Este médico ya tiene encuesta registrada. No se puede repetir.'); return; }
   }
   document.getElementById('step-'+currentStep).classList.remove('active');
   currentStep = n;
@@ -802,7 +842,10 @@ async function submitSurvey() {
   else if (total>=1)  segmento='C';
   else                segmento='Sin Rx';
 
-  const mrNombre = document.getElementById('s1-mr').value.trim() || CFG.mr || (acSelected && acSelected.mr) || 'MR';
+  // Quién llenó la encuesta en el teléfono (o "Médico (link)")
+  const capturadoPor = esLink() ? 'Médico (link)' : (document.getElementById('s1-mr').value.trim() || CFG.mr || '');
+  // MR responsable: siempre el asignado en el panel; si el médico no está en el panel, quien capturó
+  const mrNombre = (acSelected && acSelected.mr) || capturadoPor || 'MR';
 
   // Nombre del médico: del panel (acSelected) o texto libre en el input
   const medicoNombre = acSelected ? acSelected.nombre : document.getElementById('ac-input').value.trim();
@@ -817,14 +860,19 @@ async function submitSurvey() {
     especialidad:document.getElementById('s1-especialidad').value,
     e1: sliders.e1, e3: sliders.e3, eh: sliders.eh, ph: sliders.ph, sl: sliders.sl, soja: sliders.soja, bp: sliders.bp,
     total, segmento,
-    via: new URLSearchParams(window.location.search).get('med') ? 'link' : 'presencial',
+    via: esLink() ? 'link' : 'presencial',
+    capturado_por: capturadoPor,
   };
-
-  // guardar localmente siempre
-  const local = localLoad(); local.push(record); localSave(local);
 
   // intentar Supabase
   const ok = await sbInsert(record);
+  if (!ok && sbInsert.lastStatus === 409) {
+    alert('Este médico ya tiene encuesta registrada. No se guardó una segunda.');
+    btn.disabled=false; btn.textContent='✓ Guardar encuesta';
+    return;
+  }
+  // copia local (respaldo en el teléfono)
+  const local = localLoad(); local.push(record); localSave(local);
   document.getElementById('success-msg').textContent = ok
     ? '✅ Datos enviados a Supabase en tiempo real.'
     : '💾 Guardado localmente (sin conexión a Supabase).';
